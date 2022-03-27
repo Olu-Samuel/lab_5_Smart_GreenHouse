@@ -1,0 +1,220 @@
+// include the library code:
+
+#include <LiquidCrystal.h>
+#include <TroykaDHT.h>
+
+DHT dht(32, DHT11);
+int sensorPin = A1; 
+const int butStartPin = 6;
+const int buzzer = 8;
+const int redLed = 26;
+const int greenLed = 10;
+const int blueLed = 9;
+const int fan = 28;
+
+// initialize the library by associating any needed LCD interface pin
+// with the arduino pin number it is connected to
+const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+float temp, humid;
+int butStart = 0;   // variable for reading the pushbutton status
+int sensorValue;
+float limit = 470;
+float waterL = 0;
+ 
+void setup() 
+{
+  pinMode(butStartPin, INPUT);
+  pinMode(redLed, OUTPUT);
+  pinMode(greenLed, OUTPUT);
+  pinMode(blueLed, OUTPUT);
+  pinMode(buzzer, OUTPUT);
+  pinMode(fan, OUTPUT);
+
+  
+  // set up the LCD's number of columns and rows:
+  lcd.begin(16, 2);
+  // Print a message to the LCD.
+  lcd.print("Welcome to ESD!");
+  lcd.setCursor(0, 1);
+  lcd.print("ABC Flower Farm Sys");
+  delay(5000);
+  lcd.setCursor(0, 0);
+  lcd.print("Instr: Ndashimye");
+  lcd.setCursor(0, 1);
+  lcd.print("Assistd: Moise S.");
+  delay(5000);
+  lcd.setCursor(0, 0);
+  lcd.print("ABC F. Farm Sys ");
+  lcd.setCursor(0, 1);
+  lcd.print("System Init >>>>");
+  delay(5000);
+  digitalWrite(redLed, LOW);
+  digitalWrite(blueLed, LOW);
+  digitalWrite(greenLed, HIGH);
+  dht.begin();
+  Serial.begin(9600);
+  
+}
+
+void loop() 
+{
+  //************ To LCD Display **************************************
+  lcd.clear();
+  dht.read();
+  sensorValue = analogRead(sensorPin); 
+  butStart = digitalRead(butStartPin);
+  digitalWrite(greenLed, HIGH);
+
+//************ Checking the DHT11 sensor response ********************
+  switch(dht.getState()) 
+  {
+    // if OK
+    case DHT_OK:
+    lcd.setCursor(0, 0);
+    // read signal
+    lcd.print("Temp.: ");
+    lcd.setCursor(7, 0);
+    lcd.print(dht.getTemperatureC());
+    lcd.print(" C");
+
+    lcd.setCursor(0, 1);
+    
+    // *** Checking for checksum error *****
+    case DHT_ERROR_CHECKSUM:
+      //lcd.print("Checksum error");
+      break;
+
+    // *** Checking for Time-out error *****
+    lcd.setCursor(0, 1);
+    case DHT_ERROR_TIMEOUT:
+      lcd.print("Time out error");
+      break;
+
+    // *** Checking for signal error *****
+    lcd.setCursor(0, 1);
+    // No response signal
+    case DHT_ERROR_NO_REPLY:
+      lcd.print("Sensor not connected");
+      break;
+  }
+
+  //************* Setting farm temperature parameter ****************************************
+  
+  while(dht.getTemperatureC() < 19)
+  {
+    lcd.setCursor(0, 1);
+    lcd.print("Turn Heater ON");
+    digitalWrite(buzzer, HIGH);
+    digitalWrite(redLed, HIGH);
+    digitalWrite(greenLed, LOW);
+    delay(2000);
+    digitalWrite(buzzer, LOW);
+    digitalWrite(greenLed, LOW);
+    digitalWrite(redLed, LOW);
+    delay(2000);
+    break;
+  }
+  
+  while(dht.getTemperatureC() > 30)
+  {
+    digitalWrite(greenLed, LOW);
+    lcd.setCursor(0, 1);
+    lcd.print("Turn Fan ON");
+    digitalWrite(buzzer, HIGH);
+    digitalWrite(redLed, HIGH);
+    delay(2000);
+    digitalWrite(buzzer, LOW);
+    digitalWrite(redLed, LOW);
+    delay(2000);
+    
+    break;
+    
+  }
+  
+  // delay
+  delay(2000);
+
+  // *** Fan running action *****
+  if (dht.getTemperatureC() > 30)
+  {
+    digitalWrite(fan, HIGH);
+
+    if (dht.getTemperatureC() < 30)
+    {
+      digitalWrite(fan, LOW);
+    }
+  }
+
+//************* Setting farm water/irrigation parameter ****************************************
+//*** The dynamic range is expected to between 300 - 400 ***************************************
+//*** but this can be affected by conductivity of the water and temperature ********************
+
+  Serial.println("Water level Value: ");
+  waterL = 100 - (((sensorValue - limit) / 300) * 100);
+  
+  Serial.print(waterL);
+  Serial.println(" %");
+  delay(1000); 
+  
+  while (waterL < 30)
+  {
+    digitalWrite(greenLed, LOW);
+    lcd.setCursor(0, 1);
+    lcd.print("Irrigate ...");
+    digitalWrite(buzzer, HIGH);
+    digitalWrite(redLed, HIGH);
+    delay(2000);
+    lcd.setCursor(0, 1);
+    lcd.print("H20 Lev: ");
+    lcd.setCursor(9, 1);
+    lcd.print(waterL);
+    lcd.print(" %");
+    digitalWrite(buzzer, LOW);
+    digitalWrite(redLed, LOW);
+    digitalWrite(greenLed, HIGH);
+    delay(2000);
+    break;
+  }
+
+  if(waterL > 30)
+  {
+    lcd.setCursor(0, 1);
+    lcd.print("H20 Lev: ");
+    lcd.setCursor(9, 1);
+    lcd.print(waterL);
+    lcd.print(" %");
+    delay(2000);
+    lcd.setCursor(0, 1);
+    lcd.print("ABC Flower Farm Sys");
+    delay(2000);
+  }
+  
+
+  //************ To Serial Monitor **************************************
+
+  Serial.print("Temperature = ");
+  Serial.print(dht.getTemperatureC());
+  Serial.println(" C \t");
+  Serial.print("Humidity = ");
+  Serial.print(dht.getHumidity());
+  Serial.println(" %");
+}
+
+
+/*
+  The LCD circuit Connection:
+ * LCD RS pin to digital pin 12
+ * LCD Enable pin to digital pin 11
+ * LCD D4 pin to digital pin 5
+ * LCD D5 pin to digital pin 4
+ * LCD D6 pin to digital pin 3
+ * LCD D7 pin to digital pin 2
+ * LCD R/W pin to ground
+ * LCD VSS pin to ground
+ * LCD VCC pin to 5V
+ * 10K resistor:
+ * ends to +5V and ground
+ * wiper to LCD VO pin (pin 3)
+
+*/
